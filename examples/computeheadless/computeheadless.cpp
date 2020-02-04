@@ -29,6 +29,11 @@
 #include <vulkan/vulkan.h>
 #include "VulkanTools.h"
 
+// ------------------ RenderDoc changes ------------------ //
+#include <dlfcn.h>  // Linux only, TODO: Windows, Android
+#include "../external/renderdoc/renderdoc_app.h"
+// ------------------ RenderDoc changes ------------------ //
+
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 android_app* androidapp;
 #endif
@@ -121,6 +126,19 @@ public:
 	VulkanExample()
 	{
 		LOG("Running headless compute example\n");
+
+		// ------------------ RenderDoc changes ------------------ //
+		RENDERDOC_API_1_4_0 *rdoc_api = NULL;
+
+		void* rdoc_library = NULL;
+		if((rdoc_library = dlopen("librenderdoc.so", RTLD_NOW)))
+		{
+				pRENDERDOC_GetAPI RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)dlsym(rdoc_library, "RENDERDOC_GetAPI");
+				int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_4_0, (void **)&rdoc_api);
+				assert(ret == 1);
+				LOG("Loaded RenderDoc\n");
+		}
+		// ------------------ RenderDoc changes ------------------ //
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 		LOG("loading vulkan lib");
@@ -244,6 +262,13 @@ public:
 		cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
 		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &commandPool));
+
+		// ------------------ RenderDoc changes ------------------ //
+		if(rdoc_api) {
+			LOG("RenderDoc StartFrameCapture\n");
+			rdoc_api->StartFrameCapture(NULL, NULL);
+		}
+		// ------------------ RenderDoc changes ------------------ //
 
 		/* 
 			Prepare storage buffers
@@ -497,6 +522,16 @@ public:
 			LOG("%d \t", v);
 		}
 		std::cout << std::endl;
+
+		// ------------------ RenderDoc changes ------------------ //
+		if(rdoc_api) {
+			LOG("RenderDoc EndFrameCapture\n");
+			rdoc_api->EndFrameCapture(NULL, NULL);
+		}
+		if (rdoc_library) {
+			dlclose(rdoc_library);
+		}
+		// ------------------ RenderDoc changes ------------------ //
 
 		// Clean up
 		vkDestroyBuffer(device, deviceBuffer, nullptr);
